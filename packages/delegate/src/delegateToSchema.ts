@@ -166,13 +166,11 @@ export function delegateRequest<TContext = Record<string, any>, TArgs = any>({
       const batchingOptions = subschemaConfig?.batchingOptions;
       executor = getBatchingExecutor(
         context,
-        executor as <TReturn, TArgs, TContext>(
-          params: ExecutionParams<TArgs, TContext>
-        ) => ExecutionResult<TReturn> | Promise<ExecutionResult<TReturn>>,
+        executor,
         targetSchema,
         batchingOptions?.dataLoaderOptions,
         batchingOptions?.extensionsReducer
-      ) as Executor;
+      );
     }
 
     return new ValueOrPromise(() => executor({
