@@ -24,6 +24,7 @@ import {
   ExecutionParams,
   ExecutionResult,
   Executor,
+  Subscriber,
   isAsyncIterable,
   mapAsyncIterator,
 } from '@graphql-tools/utils';
@@ -193,7 +194,7 @@ export function delegateRequest<TContext = Record<string, any>, TArgs = any>({
     ...processedRequest,
     context,
     info,
-  }).then((subscriptionResult: AsyncIterableIterator<ExecutionResult> | ExecutionResult) =>
+  }).then(subscriptionResult =>
     handleSubscriptionResult(subscriptionResult, delegationContext, originalResult =>
       transformer.transformResult(originalResult)
     )
@@ -288,13 +289,13 @@ const createDefaultExecutor = memoize2(function (schema: GraphQLSchema, rootValu
     })) as Executor;
 });
 
-function createDefaultSubscriber(schema: GraphQLSchema, rootValue: Record<string, any>) {
-  return ({ document, context, variables, info }: ExecutionParams) =>
+function createDefaultSubscriber(schema: GraphQLSchema, rootValue: Record<string, any>): Subscriber {
+  return (async ({ document, context, variables, info }: ExecutionParams) =>
     subscribe({
       schema,
       document,
       contextValue: context,
       variableValues: variables,
       rootValue: rootValue ?? info?.rootValue,
-    }) as any;
+    })) as Subscriber;
 }
