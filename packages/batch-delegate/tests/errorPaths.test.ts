@@ -1,8 +1,9 @@
-import { graphql, GraphQLError } from 'graphql';
+import { graphql, GraphQLError, responsePathAsArray } from 'graphql';
 import { batchDelegateToSchema } from '@graphql-tools/batch-delegate';
 import { delegateToSchema } from '@graphql-tools/delegate';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { stitchSchemas } from '@graphql-tools/stitch';
+import { relocatedError } from '@graphql-tools/utils';
 
 class NotFoundError extends GraphQLError {
   constructor(id: unknown) {
@@ -135,7 +136,9 @@ describe('preserves error path indices', () => {
               return batchDelegateToSchema({
                 schema: subschema,
                 fieldName: 'propertiesByIds',
-                key: source.propertyId,
+                key: { value: source.propertyId, info },
+                argsFromKeys,
+                valuesFromResults,
                 context,
                 info,
               });
@@ -151,3 +154,37 @@ describe('preserves error path indices', () => {
     expect(result).toMatchObject(expected);
   });
 });
+
+function relocateErrors(value: any, path: Array<string | number>): any {
+  if (value instanceof GraphQLError) {
+    return relocatedError(value, path);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((data, index) => {
+      return relocateErrors(data, path.concat(index));
+    });
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.keys(value).reduce((result, key) => {
+      return Object.assign(result, { [key]: relocateErrors(value[key], path.concat(key)) });
+    }, {});
+  }
+
+  return value;
+}
+
+function uniq<T>(values: T[]): T[] {
+  return Array.from(new Set(values).values());
+}
+
+function argsFromKeys(keys: readonly any[]) {
+  return { ids: uniq(keys.map(key => key.value)) };
+}
+
+function valuesFromResults(results: any[], keys: readonly any[]) {
+  const args = argsFromKeys(keys);
+  const cache = new Map(args.ids.map((id, index) => [id, results[index]]));
+  return keys.map(key => relocateErrors(cache.get(key.value), responsePathAsArray(key.info.path)));
+}
